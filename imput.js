@@ -26,26 +26,6 @@ function isHovering(x, y, width, height) {
   return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
 }
 
-function initCountryEntranceAnimation() {
-    const countryKeys = Object.keys(window.playersData);
-    window.gameState.containerJumpStates = window.gameState.containerJumpStates || {}; 
-    
-    // Limpa estados de slide anteriores
-    for (const key in window.gameState.containerJumpStates) {
-         if (key.startsWith('container_')) {
-             delete window.gameState.containerJumpStates[key];
-         }
-    }
-    
-    // Configura o slide de entrada (da esquerda para a direita)
-    countryKeys.forEach(country => {
-        window.gameState.containerJumpStates[`container_${country}`] = { 
-            slideProgress: 0, // Começa em 0 (fora da tela)
-            slideDirection: -1 // -1 significa slide IN (0 -> 1)
-        };
-    });
-}
-
 function handleCanvasClick(event) {
   if (gameState.isClickLocked) {
     console.log("Clique bloqueado, aguarde a animação.");
@@ -77,7 +57,6 @@ function handleCanvasClick(event) {
           gameState.isClickLocked = true;
           setTimeout(() => {
             gameState.screen = SCREENS.COUNTRY_SELECT;
-            window.initCountryEntranceAnimation(); 
             // NOVO: Limpa as animações de entrada dos países
             resetCountryContainerJumps(); 
             playSoundEffect(SOUND_EFFECTS.CLICK);
@@ -122,97 +101,65 @@ function handleCanvasClick(event) {
       break;
 
     case SCREENS.COUNTRY_SELECT:
-      {
-        // NOVOS TAMANHOS SINCRONIZADOS (IMPORTANTE: Deve ser igual a screenrenderers.js)
-        const COUNTRY_CONTAINER_WIDTH = getResponsiveSize(200); 
-        const COUNTRY_CONTAINER_HEIGHT = getResponsiveSize(140);
-        const spacing = getResponsiveSize(30); 
+      const backButtonWidthCS = getResponsiveSize(150);
+      const backButtonHeightCS = getResponsiveSize(50);
+      const backButtonXCS = (canvas.width - backButtonWidthCS) / 2;
+      const backButtonYCS = canvas.height - backButtonHeightCS - getResponsiveSize(20);
 
-        const countries = window.playersData || {};
-        const countryKeys = Object.keys(countries);
-        const numCountries = countryKeys.length;
-        
-        // REPLICAÇÃO DO CÁLCULO DE POSIÇÃO (Para detecção de clique)
-        const fixedX = (canvas.width - COUNTRY_CONTAINER_WIDTH) / 2;
-        
-        const titleLineHeight = getResponsiveSize(30);
-        let contentYAnchor = canvas.height * 0.1;
-        contentYAnchor += titleLineHeight; 
-        contentYAnchor += getResponsiveSize(40); 
-        
-        const totalColumnHeight = numCountries * COUNTRY_CONTAINER_HEIGHT + (numCountries - 1) * spacing;
-        
-        const availableHeightForList = canvas.height - contentYAnchor - getResponsiveSize(70); 
-        let startY = contentYAnchor + (availableHeightForList - totalColumnHeight) / 2;
-        
-        if (numCountries > 4) {
-            startY = contentYAnchor + getResponsiveSize(10); 
+      // 1. Verificar clique no botão de Voltar
+      if (isHovering(backButtonXCS, backButtonYCS, backButtonWidthCS, backButtonHeightCS)) {
+        gameState.buttonJumpStates['backFromCountrySelect'] = { jumpProgress: 0, isJumping: true, jumpDirection: 1 };
+        // Chamar a função de partículas, se ela existir
+        if (typeof criarParticulasCliqueBotao === 'function') {
+            criarParticulasCliqueBotao(backButtonXCS, backButtonYCS, backButtonWidthCS, backButtonHeightCS);
         }
+        gameState.isClickLocked = true;
+        setTimeout(() => {
+          gameState.screen = SCREENS.MENU;
+          playSoundEffect(SOUND_EFFECTS.CLICK);
+          playBackgroundMusic('./assets/audio/musica-menu.ogg');
+          gameState.isClickLocked = false;
+          render();
+        }, 300);
+        return; // <--- ADICIONADO: Sai da função após o clique no botão Voltar
+      }
 
-        let clickedCountry = null;
+      // 2. Verificar cliques nos países
+      const countryKeys = Object.keys(window.playersData);
+      const buttonHeight = getResponsiveSize(80);
+      const buttonSpacing = getResponsiveSize(20);
+      const startY = (canvas.height - (countryKeys.length * buttonHeight + (countryKeys.length - 1) * buttonSpacing)) / 2;
+      const quadWidth = getResponsiveSize(70);
+      const rectWidth = getResponsiveSize(250);
+      const totalButtonWidth = quadWidth + getResponsiveSize(20) + rectWidth;
 
-        // 1. Detectar clique no container
-        countryKeys.forEach((country, index) => {
-             const targetX = fixedX;
-             const targetY = startY + index * (COUNTRY_CONTAINER_HEIGHT + spacing);
-             
-             if (isHovering(targetX, targetY, COUNTRY_CONTAINER_WIDTH, COUNTRY_CONTAINER_HEIGHT)) {
-                 clickedCountry = country;
-             }
-        });
+      for (let index = 0; index < countryKeys.length; index++) {
+        const countryKey = countryKeys[index];
+        const isUnlocked = gameState.unlockedCountries.includes(countryKey);
+        const y = startY + index * (buttonHeight + buttonSpacing);
+        const x = (canvas.width - totalButtonWidth) / 2;
 
-        // 2. Lógica de Animação de Saída no clique
-        if (clickedCountry) {
-            window.playSoundEffect(window.SOUND_EFFECTS.CLICK);
-            window.gameState.currentCountry = clickedCountry;
-            window.gameState.isClickLocked = true;
-            
-            // INICIAR ANIMAÇÃO DE SAÍDA (Slide Right)
-            countryKeys.forEach(country => {
-                 const stateId = `container_${country}`;
-                 
-                 if (country !== clickedCountry) {
-                     window.gameState.containerJumpStates[stateId] = { 
-                         slideProgress: 0, 
-                         slideDirection: 1 // Slide OUT para a direita
-                     };
-                 } else {
-                     window.gameState.containerJumpStates[stateId] = { 
-                         slideProgress: 1, 
-                         slideDirection: 0 
-                     };
-                 }
-            });
-            
-            // TRANSIÇÃO DE TELA APÓS A ANIMAÇÃO
-            setTimeout(() => {
-                window.gameState.screen = SCREENS.DIFFICULTY_SELECT;
-                window.gameState.isClickLocked = false;
-                
-                window.gameState.containerJumpStates = {}; 
-                window.gameState.buttonJumpStates = {};
-                
-                render();
-            }, 600); 
-
-        } 
-        
-        // 3. Lógica de clique no Botão Voltar
-        const backButtonWidth = getResponsiveSize(150);
-        const backButtonHeight = getResponsiveSize(50);
-        const backButtonX = (canvas.width - backButtonWidth) / 2;
-        const backButtonY = canvas.height - backButtonHeight - getResponsiveSize(20);
-
-        if (isHovering(backButtonX, backButtonY, backButtonWidth, backButtonHeight)) {
-            gameState.buttonJumpStates['backFromCountrySelect'] = { jumpProgress: 0, isJumping: true, jumpDirection: 1 };
+        if (isHovering(x, y, totalButtonWidth, buttonHeight)) {
+          // Chamar a função de partículas, se ela existir
+          if (typeof criarParticulasCliqueBotao === 'function') {
+              criarParticulasCliqueBotao(x, y, totalButtonWidth, buttonHeight);
+          }
+          
+          if (isUnlocked) {
+            gameState.containerJumpStates[`container_${countryKey}`] = { jumpProgress: 0, isJumping: true, jumpDirection: 1 };
             gameState.isClickLocked = true;
             setTimeout(() => {
-                gameState.screen = SCREENS.MENU;
-                window.playSoundEffect(window.SOUND_EFFECTS.CLICK);
-                window.gameState.containerJumpStates = {};
-                gameState.isClickLocked = false;
-                render();
+              gameState.currentCountry = countryKey;
+              gameState.screen = SCREENS.DIFFICULTY_SELECT;
+              playSoundEffect(SOUND_EFFECTS.CLICK);
+              gameState.isClickLocked = false;
+              render();
             }, 300);
+          } else {
+            playSoundEffect(SOUND_EFFECTS.UPGRADE_FAIL);
+            console.log(`País ${countryKey} está bloqueado!`);
+          }
+          return; // <--- ADICIONADO: Sai da função após clicar no país
         }
       }
       break;
@@ -566,4 +513,4 @@ case SCREENS.ABILITIES_TUTORIAL:
       }
       break;
   }
-              }
+                   }
