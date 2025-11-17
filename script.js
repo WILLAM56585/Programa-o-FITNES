@@ -13,33 +13,14 @@ function ajustarCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     // Reseta qualquer transformação de contexto para evitar dupla escala
-    ctx.setTransform(1, 0, 0, 1, 0, 0); 
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 ajustarCanvas(); // Chamada inicial
 window.addEventListener("resize", ajustarCanvas); // Ajuste ao redimensionar
 
 function preloadSounds() {
-    const promises = [];
-     Object.values(window.playersData).forEach(countryData => {
-        if (countryData.gameMusic) {
-            soundFiles[countryData.gameMusic] = countryData.gameMusic;
-        }
-    });
-
-    // Adicione as músicas do menu
-    MENU_MUSIC_PATHS.forEach(path => {
-        soundFiles[path] = path;
-    });
-    Object.values(soundFiles).forEach(path => {
-        const audio = new Audio(path);
-        window.loadedSounds[path] = audio;
-        promises.push(new Promise((resolve) => {
-            audio.oncanplaythrough = () => resolve();
-            audio.onerror = () => resolve(); // não trava se der erro
-            audio.load();
-        }));
-    });
-    return Promise.all(promises);
+    // COMENTADO: Não carrega áudios para velocidade
+    return Promise.resolve([]);  // <- Resolve imediatamente (0s)
 }
 
 const MENU_MUSIC_PATHS = [
@@ -131,8 +112,8 @@ const initialGameState = {
     containerJumpStates: {},
     menuOpen: false,
     hasUserInteracted: false,
-    sfxEnabled: true,
-    musicEnabled: true,
+    sfxEnabled: false,
+    musicEnabled: false,
     abilityLevels: {
         bonusTime: 0,
     },
@@ -147,65 +128,18 @@ window.gameState = JSON.parse(JSON.stringify(initialGameState));
 
 window.currentlyPlayingSFX = null;
 window.playSoundEffect = function(effect) {
-    if (!window.gameState.sfxEnabled) {
-        return;
-    }
-
-    // Pausa e reseta QUALQUER som que esteja tocando (logica existente)
-    if (window.currentlyPlayingSFX) {
-        window.currentlyPlayingSFX.pause();
-        window.currentlyPlayingSFX.currentTime = 0;
-        // Não é necessário anular o 'onended' aqui
-    }
-    // NOTA: window.currentlyPlayingSFX SERÁ REESCRITO no bloco IF abaixo
-
-    const soundPath = soundFiles[effect]; 
-
-    if (soundPath && window.loadedSounds[soundPath]) {
-        const audio = window.loadedSounds[soundPath].cloneNode();
-        audio.volume = 0.5;
-        window.currentlyPlayingSFX = audio;
-        
-        // NOVO AJUSTE: Limpa o currentlyPlayingSFX se o play() for interrompido
-        audio.play().catch(e => {
-            if (e.name === "AbortError" && window.currentlyPlayingSFX === audio) {
-                // Se o próprio som foi abortado, limpa a referência para não pausar o próximo
-                window.currentlyPlayingSFX = null;
-            }
-            // Deixa o log original como fallback:
-            console.warn("Erro ao reproduzir som:", e);
-        });
-
-        // Limpa a referência quando o som termina
-        audio.onended = () => {
-            if (window.currentlyPlayingSFX === audio) {
-                window.currentlyPlayingSFX = null;
-            }
-        };
-    }
+    // COMENTADO: Sem som
+    return;
 };
 
 window.playBackgroundMusic = function(musicPath) {
-    if (!gameState.hasUserInteracted) return;
-    if (gameState.backgroundMusic) {
-        if (gameState.backgroundMusic.src.includes(musicPath.split('/').pop()) && !gameState.backgroundMusic.paused) return;
-        gameState.backgroundMusic.pause();
-        gameState.backgroundMusic.currentTime = 0;
-    }
-    if (gameState.musicEnabled && window.loadedSounds[musicPath]) {
-        gameState.backgroundMusic = window.loadedSounds[musicPath];
-        gameState.backgroundMusic.loop = true;
-        
-        // NOVO: Define o volume da música para um valor fixo.
-        // Você pode ajustar o valor (0.0 a 1.0) conforme desejar.
-        gameState.backgroundMusic.volume = 0.1;
-        
-        gameState.backgroundMusic.play().catch(e => console.warn("Erro ao reproduzir música:", e));
-    }
+    // COMENTADO: Sem música
+    return;
 };
 
 window.stopBackgroundMusic = function() {
-    if (gameState.backgroundMusic) gameState.backgroundMusic.pause();
+    // COMENTADO: Sem música
+    return;
 };
 
 window.saveUnlockedCountries = function() {
@@ -308,103 +242,6 @@ window.render = function() {
 async function init() {
     canvas.style.display = 'none';
 
-    // CSS da tela de carregamento
-    const css = `
-        body {
-            background: #f4f0e6;
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .box {
-            width: 260px;
-            height: 360px;
-            border: 5px solid #8b5e3c;
-            border-radius: 10px;
-            background: #fff;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
-            perspective: 800px;
-        }
-        .card {
-            width: 40px;
-            height: 60px;
-            position: absolute;
-            animation: drop 0.6s ease forwards;
-            transform-style: preserve-3d;
-        }
-        .card-inner {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            transform-style: preserve-3d;
-            transition: transform 0.6s ease;
-        }
-        .card-front, .card-back {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            border: 2px solid #333;
-            border-radius: 5px;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-            backface-visibility: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            font-weight: bold;
-            color: #333;
-        }
-        .card-front {
-            background: #ffeeba;
-            transform: rotateY(180deg);
-        }
-        .card-back {
-            background: white;
-        }
-        .card.flipped .card-inner {
-            transform: rotateY(180deg);
-        }
-        @keyframes drop {
-            0% { top: -70px; opacity: 0; }
-            50% { opacity: 1; }
-            100% { top: var(--top); opacity: 1; }
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.3); }
-            100% { transform: scale(1); }
-        }
-        .pulse {
-            animation: pulse 0.6s infinite;
-        }
-        .progress {
-            margin-top: 20px;
-            font-size: 24px;
-            font-weight: bold;
-        }
-    `;
-
-    const style = document.createElement('style');
-    style.innerHTML = css;
-    document.head.appendChild(style);
-
-    const box = document.createElement('div');
-    box.classList.add('box');
-    box.id = 'box';
-    document.body.appendChild(box);
-
-    const progressDiv = document.createElement('div');
-    progressDiv.classList.add('progress');
-    progressDiv.id = 'progress';
-    progressDiv.textContent = '0%';
-    document.body.appendChild(progressDiv);
-
     // Preenche as listas de recursos
     const imagesToLoad = [];
     const soundsToLoad = []; // Esta lista não está sendo usada de forma eficaz no seu código atual
@@ -431,16 +268,6 @@ async function init() {
     let loadedCount = 0;
     const totalResources = imagesToLoad.length + soundsToLoad.length;
 
-    let count = 0;
-    const totalCards = 25;
-    const columns = 5;
-    const rows = 5;
-    const cardWidth = 40;
-    const cardHeight = 60;
-    const spacingX = 10;
-    const spacingY = 10;
-    const cards = [];
-
     const loadPromises = [];
 
 // Carregar imagens
@@ -460,148 +287,20 @@ const resourcesPromise = Promise.all(loadPromises).then(() => {
     updateLoadingProgress(true);
 });
 
+// NOVA: SEM CARDS/DOM/ANIMAÇÃO – direto ao ponto
+await resourcesPromise;
 
-    function updateLoadingProgress(force = false) {
-        const percent = Math.floor((loadedCount / totalResources) * 100);
-        progressDiv.textContent = `${percent}%`;
-        let targetCount = Math.floor((loadedCount / totalResources) * totalCards);
-        if (force) targetCount = totalCards;
-        targetCount = Math.min(targetCount, totalCards);
-        while (count < targetCount) {
-            createAndAddCard();
-            count++;
-        }
-        if (count >= totalCards) {
-            setTimeout(showMessage, 800);
-        }
-    }
+// Remove CSS/elemento de loading (rápido)
+const style = document.querySelector('style');  // Remove o CSS injetado se existir
+if (style) style.remove();
+canvas.style.display = 'block';
+document.body.style.background = '';  // Reset
 
-    
-    function createAndAddCard() {
-        const card = document.createElement('div');
-        card.classList.add('card');
-        const cardInner = document.createElement('div');
-        cardInner.classList.add('card-inner');
-        const cardFront = document.createElement('div');
-        cardFront.classList.add('card-front');
-        const cardBack = document.createElement('div');
-        cardBack.classList.add('card-back');
-        cardInner.appendChild(cardFront);
-        cardInner.appendChild(cardBack);
-        card.appendChild(cardInner);
-        const col = Math.floor(count / rows);
-        const row = count % rows;
-        const left = row * (cardWidth + spacingX) + 10;
-        const top = col * (cardHeight + spacingY) + 10;
-        card.style.setProperty('--top', `${top}px`);
-        card.style.top = `${top}px`;
-        card.style.left = `${left}px`;
-        box.appendChild(card);
-        cards.push({ element: card, front: cardFront, col, row });
-    }
+// Áudio desabilitado: sem setupAudioUnlock
+gameState.screen = SCREENS.MENU;
+requestAnimationFrame(gameLoop);
 
-    // Promise para a animação
-    const animationPromise = new Promise((resolve) => {
-
-        function showMessage() {
-            const messageMap = {
-                '0-0': 'V',
-                '1-1': 'A',
-                '2-2': 'M',
-                '3-3': 'O',
-                '4-4': 'S'
-            };
-            cards.forEach(({ element, front, col, row }) => {
-                const key = `${col}-${row}`;
-                if (messageMap[key]) {
-                    front.textContent = messageMap[key];
-                    setTimeout(() => {
-                        element.classList.add('flipped');
-                    }, 100 * (col + row));
-                }
-            });
-            setTimeout(showOnlyExclamation, 2500);
-        }
-
-        function showOnlyExclamation() {
-            cards.forEach(({ element, front, col, row }) => {
-                if (col === 2 && row === 2) {
-                    front.textContent = '!';
-                    front.style.background = '#c3f0ca';
-                    element.classList.add('pulse');
-                } else {
-                    element.classList.remove('flipped');
-                    front.textContent = '';
-                    front.style.background = '#ffeeba';
-                    element.classList.remove('pulse');
-                }
-            });
-            // Delay final para o pulso antes de resolver
-            setTimeout(() => {
-                resolve();
-            }, 2000);
-        }
-
-        window.showMessage = showMessage; // Expose for force call if needed
-    });
-
-    updateLoadingProgress(); // Initial 0%
-
-    // Carregamento de recursos
-    for (const path of imagesToLoad) {
-        loadedImages[path] = new Image();
-        loadedImages[path].src = path;
-        const p = new Promise((res) => {
-            loadedImages[path].onload = () => {
-                console.log(`Imagem carregada: ${path}`);
-                loadedCount++;
-                updateLoadingProgress();
-                res();
-            };
-            loadedImages[path].onerror = () => {
-                console.warn(`Erro ao carregar imagem: ${path}, usando fallback.`);
-                loadedImages[path].src = FALLBACK_IMAGE_PATH;
-                loadedCount++;
-                updateLoadingProgress();
-                res();
-            };
-        });
-        loadPromises.push(p);
-    }
-
-    // Aguarda tanto o carregamento de recursos quanto a animação
-    await Promise.all([resourcesPromise, animationPromise]);
-
-    // Remove elementos da tela de carregamento e restaura
-    box.remove();
-    progressDiv.remove();
-    style.remove();
-    document.body.style.display = ''; // Reset para evitar conflitos
-    document.body.style.background = ''; // Reset background
-    canvas.style.display = 'block';
-
-    // Adiciona a lógica para iniciar a música aqui após a tela de carregamento
-    // com um listener para a primeira interação do utilizador.
-    const setupAudioUnlock = () => {
-    if (!gameState.hasUserInteracted) {
-        gameState.hasUserInteracted = true;
-
-        // NOVO: Escolhe aleatoriamente uma das músicas do menu
-        const randomIndex = Math.floor(Math.random() * MENU_MUSIC_PATHS.length);
-        const randomMenuMusic = MENU_MUSIC_PATHS[randomIndex];
-
-        window.playBackgroundMusic(randomMenuMusic); // Toca a música aleatória
-        
-        canvas.removeEventListener('click', setupAudioUnlock);
-        canvas.removeEventListener('touchend', setupAudioUnlock);
-        console.log("Áudio desbloqueado com a primeira interação do utilizador.");
-    }
-};
-    canvas.addEventListener('click', setupAudioUnlock);
-    canvas.addEventListener('touchend', setupAudioUnlock);
-
-    gameState.screen = SCREENS.MENU;
-    requestAnimationFrame(gameLoop);
+console.log('Loading ultra-rápido ativado!');
 }
 
 async function simpleHash(str) {
