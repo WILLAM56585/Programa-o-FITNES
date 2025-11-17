@@ -7,13 +7,6 @@ const COUNTRY_COLORS = {
   brasil: { main: "#009c3b", secondary: "#ffdf00" }   // Verde e Amarelo
 };
 
-// Informações adicionais sobre cada país
-const COUNTRY_INFO = {
-  england: "Explore a cultura britânica com cartas temáticas de Londres!",
-  espanha: "Viva a paixão espanhola com imagens vibrantes!",
-  brasil: "Descubra o ritmo e as cores do Brasil!"
-};
-
 function drawCoinsCounter() {
     const coinEmoji = '💰';
     const coinsText = window.gameState.playerCoins;
@@ -185,144 +178,200 @@ function getCountryButtonDimensions() {
 }
 
 function drawCountrySelectScreen() {
-    drawGradientBackground();
-    drawCoinsCounter();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Título (Menor e em duas linhas)
-    ctx.fillStyle = 'white';
-    ctx.textAlign = 'center';
-    
-    // Título menor
-    const titleFontSize = getResponsiveSize(24); 
-    const titleLineHeight = getResponsiveSize(30); 
-    
-    let contentYAnchor = canvas.height * 0.1; 
-    
-    ctx.font = `${titleFontSize}px 'Press Start 2P'`;
-    
-    // Linha 1 do Título
-    ctx.fillText("ESCOLHA SEU", canvas.width / 2, contentYAnchor);
-    
-    contentYAnchor += titleLineHeight; 
-    
-    // Linha 2 do Título
-    ctx.fillText("DESAFIO", canvas.width / 2, contentYAnchor);
-    
-    // Pula para o início dos containers
-    contentYAnchor += getResponsiveSize(40); 
-    
-    // 2. Containers dos Países (Coluna Vertical Centralizada)
-    
-    // NOVOS TAMANHOS (Aumentados)
-    const COUNTRY_CONTAINER_WIDTH = getResponsiveSize(200); 
-    const COUNTRY_CONTAINER_HEIGHT = getResponsiveSize(140); 
-    const FLAG_SIZE = getResponsiveSize(80); // Bandeira ligeiramente maior
-    const spacing = getResponsiveSize(30); // MAIOR ESPAÇAMENTO ENTRE BOTÕES
-
-    const countries = window.playersData || {};
-    const countryKeys = Object.keys(countries);
-    const numCountries = countryKeys.length;
-    
-    const fixedX = (canvas.width - COUNTRY_CONTAINER_WIDTH) / 2;
-    
-    // Cálculo de Posição Y (centralização vertical)
-    const totalColumnHeight = numCountries * COUNTRY_CONTAINER_HEIGHT + (numCountries - 1) * spacing;
-    
-    const availableHeightForList = canvas.height - contentYAnchor - getResponsiveSize(70); 
-    let startY = contentYAnchor + (availableHeightForList - totalColumnHeight) / 2;
-    
-    if (numCountries > 4) {
-        startY = contentYAnchor + getResponsiveSize(10); 
+    if (!window.playersData) {
+        drawErrorScreen("Erro: Dados dos países não carregados.");
+        return;
     }
 
-    countryKeys.forEach((country, index) => {
-        const targetX = fixedX;
-        const targetY = startY + index * (COUNTRY_CONTAINER_HEIGHT + spacing);
-        const countryData = countries[country];
+    // [ESTADO DE ANIMAÇÃO DE TRANSIÇÃO]
+    // Inicializa o estado se for a primeira vez
+    window.gameState.countryListXOffset = window.gameState.countryListXOffset === undefined ? -canvas.width : window.gameState.countryListXOffset;
+    window.gameState.exitCountryId = window.gameState.exitCountryId || null;
+    
+    let targetOffset = 0; 
+    
+    // Define o TARGET para a animação de SAÍDA
+    if (window.gameState.exitCountryId && window.gameState.exitCountryId !== 'voltar') {
+        // País selecionado: Todos os não selecionados vão para a direita (canvas.width)
+        targetOffset = canvas.width;
+    } else if (window.gameState.exitCountryId === 'voltar') {
+        // Voltar selecionado: Todos os botões saem pela esquerda
+        targetOffset = -canvas.width;
+    }
+    
+    // Suavização do movimento
+    window.gameState.countryListXOffset += (targetOffset - window.gameState.countryListXOffset) * 0.1; // Suavidade ajustada para 0.1
 
-        // Lógica de Slide (ANIMAÇÃO)
-        const stateId = `container_${country}`;
-        const slideState = window.gameState.containerJumpStates[stateId] || {};
-        const slideProgress = slideState.slideProgress !== undefined ? slideState.slideProgress : 1; 
-        const slideDirection = slideState.slideDirection || 0;
-        
-        const startXAnim = -COUNTRY_CONTAINER_WIDTH; 
-        const endXAnim = canvas.width;            
-        
-        let currentX = targetX;
+    // Desenhar fundo gradiente e partículas
+    drawGradientBackground();
+    updateParticulas();
+    drawParticulas();
 
-        if (slideDirection === -1) { 
-             currentX = startXAnim * (1 - slideProgress) + targetX * slideProgress;
-        } else if (slideDirection === 1) { 
-             currentX = targetX * (1 - slideProgress) + endXAnim * slideProgress;
+    // Título (MODIFICAÇÃO: Fonte Bungee e tamanho muito reduzido)
+    const titulo = "🌍 Escolha seu País";
+    const titleFontSize = getResponsiveSize(30); // Reduzido drasticamente de 42 para 30
+    const titleY = getResponsiveSize(40); // Posicionado mais perto do topo
+
+    ctx.font = `bold ${titleFontSize}px Bungee`; 
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.lineWidth = getResponsiveSize(4); // Borda mais fina
+    ctx.strokeStyle = "black";
+    ctx.strokeText(titulo, canvas.width / 2, titleY);
+    ctx.fillStyle = "#FFD700";
+    ctx.fillText(titulo, canvas.width / 2, titleY);
+
+    // Configurações de layout
+    const countryKeys = Object.keys(window.playersData);
+    const buttonHeight = getResponsiveSize(70); 
+    const buttonSpacing = getResponsiveSize(30);
+    const flagRectWidth = getResponsiveSize(100); 
+    const rectWidth = getResponsiveSize(250); 
+    const gap = getResponsiveSize(20); 
+    const totalButtonWidth = flagRectWidth + gap + rectWidth;
+    
+    const totalListHeight = countryKeys.length * buttonHeight + (countryKeys.length - 1) * buttonSpacing;
+    const startY = (canvas.height - totalListHeight) / 2;
+    const initialButtonX = (canvas.width - totalButtonWidth) / 2;
+
+
+    countryKeys.forEach((countryKey, index) => {
+        const country = window.playersData[countryKey];
+        const isUnlocked = window.gameState.unlockedCountries.includes(countryKey);
+        const y = startY + index * (buttonHeight + buttonSpacing);
+        
+        let x = initialButtonX;
+
+        // NOVO: Lógica de animação
+        if (window.gameState.exitCountryId === countryKey) {
+            // O botão clicado FICA (não aplica offset)
+            x = initialButtonX; 
         } else {
-             currentX = targetX;
-        }
-        
-        if (slideDirection === 1 && slideProgress >= 1) {
-            return; 
+            // Os outros botões aplicam o offset (entrada, saída para menu, ou saída para dificuldade)
+            x = initialButtonX + window.gameState.countryListXOffset;
         }
 
-        // 3. Desenho do Contêiner
-        const color = COUNTRY_COLORS[country] || { main: '#555', secondary: '#333' }; 
-        
-        // Fundo do contêiner 
-        ctx.fillStyle = color.main;
-        window.roundRect(ctx, currentX, targetY, COUNTRY_CONTAINER_WIDTH, COUNTRY_CONTAINER_HEIGHT, 10, true, false);
-        
-        // 4. Bandeira
-        const flag = window.loadedImages[countryData.flag];
-        const flagSize = FLAG_SIZE * 0.9; 
-        const flagX = currentX + (COUNTRY_CONTAINER_WIDTH - flagSize) / 2;
-        
-        // Posição Y da Bandeira (dando espaço ao nome embaixo)
-        const flagY = targetY + getResponsiveSize(15); 
-        
-        if (flag) {
-            ctx.drawImage(flag, flagX, flagY, flagSize, flagSize * 0.6); 
-        } 
-        
-        // 5. Nome do País
-        const countryName = country.toUpperCase();
-        const nameFontSize = getResponsiveSize(20); 
-        ctx.font = `bold ${nameFontSize}px Bungee`; 
-        ctx.fillStyle = 'white';
-        
-        // Posição Y para o texto (mais alto para dar espaço à barra)
-        const nameTextY = targetY + COUNTRY_CONTAINER_HEIGHT - getResponsiveSize(30); 
-        ctx.fillText(countryName, currentX + COUNTRY_CONTAINER_WIDTH / 2, nameTextY);
+        // [ANIMAÇÃO DE SALTO]
+        const anim = gameState.containerJumpStates[`container_${countryKey}`] || { jumpProgress: 0, isJumping: false, jumpDirection: 1 };
+        const jumpFactor = anim.jumpProgress < 0.5 ? anim.jumpProgress * 0.2 : (1 - anim.jumpProgress) * 0.2;
+        const scaleY = 1 + (anim.jumpDirection === 1 ? jumpFactor : -jumpFactor);
+        const translateY = -buttonHeight * jumpFactor * (anim.jumpDirection === 1 ? 1 : -1);
 
-        // 6. Barra secundária (Underline - Mais próxima)
-        const barHeight = getResponsiveSize(5);
-        const barWidth = COUNTRY_CONTAINER_WIDTH * 0.7; 
-        const barX = currentX + (COUNTRY_CONTAINER_WIDTH - barWidth) / 2;
-        
-        // Posição Y da barra: LIGEIRAMENTE ABAIXO do texto
-        const barY = nameTextY + getResponsiveSize(2); 
+        ctx.save();
+        ctx.translate(x + totalButtonWidth / 2, y + buttonHeight / 2 + translateY);
+        ctx.scale(1, scaleY);
+        ctx.translate(-(x + totalButtonWidth / 2), -(y + buttonHeight / 2));
 
-        ctx.fillStyle = color.secondary;
-        window.roundRect(ctx, barX, barY, barWidth, barHeight, 3, true, false); 
+
+        // [CUSTOMIZAÇÃO DE CORES E IMAGEM]
+        const colors = COUNTRY_COLORS[countryKey];
+
+        // 1. Retângulo da Bandeira
+        ctx.fillStyle = isUnlocked ? colors.secondary : "#444"; 
+        roundRect(ctx, x, y, flagRectWidth, buttonHeight, 10, true, false);
+
+        // Desenhar Imagem da Bandeira (Mantendo proporção)
+        const flagImage = loadedImages[country.flag];
+        if (flagImage && flagImage.complete) {
+            // Redimensionamento para preencher o container de 100x70 mantendo a proporção
+            const containerWidth = flagRectWidth;
+            const containerHeight = buttonHeight;
+            const flagRatio = flagImage.width / flagImage.height;
+            
+            let imgWidth, imgHeight;
+            const padding = 0.8; 
+            
+            // Ajusta o tamanho da imagem para caber no container com padding, sem achatar.
+            if (containerWidth / containerHeight > flagRatio) {
+                imgHeight = containerHeight * padding; 
+                imgWidth = imgHeight * flagRatio;
+            } else { 
+                imgWidth = containerWidth * padding;
+                imgHeight = imgWidth / flagRatio;
+            }
+
+            const imgX = x + (containerWidth - imgWidth) / 2;
+            const imgY = y + (containerHeight - imgHeight) / 2;
+            
+            ctx.drawImage(flagImage, imgX, imgY, imgWidth, imgHeight);
+        }
+
+        // Desenhar Cadeado (se bloqueado)
+        if (!isUnlocked) {
+          ctx.font = `${getResponsiveSize(24)}px Arial`;
+          ctx.fillStyle = "#FFF"; 
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("🔒", x + flagRectWidth / 2, y + buttonHeight / 2 + getResponsiveSize(10));
+        }
+
+        // 2. Retângulo do Nome do País
+        const grad = ctx.createLinearGradient(x + flagRectWidth + gap, y, x + flagRectWidth + gap + rectWidth, y + buttonHeight);
+        grad.addColorStop(0, isUnlocked ? `rgba(255,255,255,0.2)` : "#222");
+        grad.addColorStop(1, isUnlocked ? `${colors.main}99` : "#555");
+        ctx.fillStyle = grad;
+        roundRect(ctx, x + flagRectWidth + gap, y, rectWidth, buttonHeight, 10, true, false);
+
+        // MODIFICAÇÃO: Remoção da borda branca
+        // ctx.strokeStyle = "#fff";
+        // ctx.lineWidth = getResponsiveSize(2);
+        // ctx.strokeRect(x + flagRectWidth + gap, y, rectWidth, buttonHeight);
+
+        // Desenhar Nome do País
+        ctx.fillStyle = "#fff";
+        ctx.font = `${getResponsiveSize(28)}px Arial`;
+        ctx.fillText(getCountryDisplayName(countryKey), x + flagRectWidth + gap + rectWidth / 2, y + buttonHeight / 2);
+
+        ctx.restore();
+
+        window.gameState.containerJumpStates[`container_${countryKey}`] = anim;
     });
 
-    // 7. Botão Voltar (fixo no fundo)
-    const backButtonWidth = getResponsiveSize(150);
-    const backButtonHeight = getResponsiveSize(50);
+    // Botão de Voltar (Sempre se move se a lista estiver se movendo)
+    const backButtonWidth = getResponsiveSize(220); 
+    const backButtonHeight = getResponsiveSize(65); 
     const backButtonX = (canvas.width - backButtonWidth) / 2;
-    const backButtonY = canvas.height - backButtonHeight - getResponsiveSize(20);
+    const backButtonY = canvas.height - backButtonHeight - getResponsiveSize(25); 
     
-    window.drawButton(
-        backButtonX,
-        backButtonY,
-        backButtonWidth,
-        backButtonHeight,
-        "VOLTAR",
-        'backFromCountrySelect',
-        true,
-        getResponsiveSize(18),
-        ['#007bff', '#0056b3'],
-        15,
-        'Bungee'
-    );
+    // O botão de voltar se move com o offset
+    let finalBackX = backButtonX + window.gameState.countryListXOffset;
+    
+    const animBack = gameState.buttonJumpStates['backFromCountrySelect'] || { jumpProgress: 0, isJumping: false, jumpDirection: 1 };
+    const jumpFactorBack = animBack.jumpProgress < 0.5 ? animBack.jumpProgress * 0.2 : (1 - animBack.jumpProgress) * 0.2;
+    ctx.save();
+    ctx.translate(finalBackX + backButtonWidth / 2, backButtonY + backButtonHeight / 2);
+    ctx.scale(1 + (animBack.jumpDirection === 1 ? jumpFactorBack : -jumpFactorBack), 1 + (animBack.jumpDirection === 1 ? jumpFactorBack : -jumpFactorBack));
+    ctx.translate(-(finalBackX + backButtonWidth / 2), -(backButtonY + backButtonHeight / 2));
+
+    const backGrad = ctx.createLinearGradient(finalBackX, backButtonY, finalBackX + backButtonWidth, backButtonY + backButtonHeight);
+    backGrad.addColorStop(0, "#ff8a00");
+    backGrad.addColorStop(1, "#e52e71");
+    ctx.fillStyle = backGrad;
+    roundRect(ctx, finalBackX, backButtonY, backButtonWidth, backButtonHeight, 15, true, true);
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = getResponsiveSize(2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#fff";
+    ctx.font = `bold ${getResponsiveSize(24)}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("⬅ Voltar", finalBackX + backButtonWidth / 2, backButtonY + backButtonHeight / 2);
+    ctx.restore();
+    
+    function getCountryDisplayName(key) {
+        const names = {
+            england: "Inglaterra",
+            espanha: "Espanha",
+            brasil: "Brasil"
+        };
+        return names[key] || key;
+    }
+    
+    atualizarParticulasClique();
+    desenharParticulasClique();
 }
 
 function drawDifficultySelectScreen() {
@@ -634,14 +683,8 @@ function drawAbilitiesScreen() {
     // 3. Título da tela
     ctx.fillStyle = 'white';
     ctx.textAlign = 'center';
-    
-    // REDUÇÃO DO TAMANHO DO TÍTULO (de 40 para 36)
-    const titleFontSize = getResponsiveSize(36); 
-    // Posição inicial: 13% da altura da tela (move um pouco mais para cima)
-    let contentYAnchor = canvas.height * 0.13; 
-    
-    ctx.font = `${titleFontSize}px 'Press Start 2P'`;
-    ctx.fillText("HABILIDADES", canvas.width / 2, contentYAnchor);
+    ctx.font = `30px 'Press Start 2P'`;
+    ctx.fillText("HABILIDADES", canvas.width / 2, canvas.height * 0.2);
 
     // --- Configurações da habilidade ---
     const bonusTimeAbility = {
