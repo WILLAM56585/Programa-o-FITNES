@@ -1,6 +1,3 @@
-window.gameLogic = window.gameLogic || {};
-
-// NOVO: Adiciona a lógica para salvar o estado de uma partida em andamento.
 window.gameLogic.saveGameInProgress = function() {
   const gameData = {
     screen: window.gameState.screen,
@@ -349,4 +346,4 @@ window.gameLogic.checkMatch = function() {
 window.gameLogic.resetJumpStates = function() {
     window.gameState.containerJumpStates = {};
     window.gameState.buttonJumpStates = {};
-};
+};"
