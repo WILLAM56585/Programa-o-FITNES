@@ -1,3 +1,4 @@
+playersData.js
 const playersData = {
   england: {
     flag: './assets/flags/inglaterra.png',
